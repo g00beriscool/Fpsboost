@@ -1,131 +1,523 @@
-G.Settings = {
+_G.Settings = {
     Players = {
-        ["Ignore Me"] = true, -- Ignore your Character
-        ["Ignore Others"] = true -- Ignore other Characters
+        ["Ignore Me"] = true,  -- Ignore your Character
+        ["Ignore Others"] = true  -- Ignore other Characters
     },
     Meshes = {
-        Destroy = false, -- Destroy Meshes
-        LowDetail = true -- Low detail meshes (NOT SURE IT DOES ANYTHING)
+        Destroy = false,  -- Destroy Meshes
+        LowDetail = true  -- Low detail meshes
     },
     Images = {
-        Invisible = true, -- Invisible Images
-        LowDetail = false, -- Low detail images (NOT SURE IT DOES ANYTHING)
-        Destroy = false, -- Destroy Images
+        Invisible = true,  -- Invisible Images
+        LowDetail = false,  -- Low detail images
+        Destroy = false,  -- Destroy Images
     },
-    ["No Particles"] = true, -- Disables all ParticleEmitter, Trail, Smoke, Fire and Sparkles
-    ["No Camera Effects"] = true, -- Disables all PostEffect's (Camera/Lighting Effects)
-    ["No Explosions"] = true, -- Makes Explosion's invisible
-    ["No Clothes"] = true, -- Removes Clothing from the game
-    ["Low Water Graphics"] = true, -- Removes Water Quality
-    ["No Shadows"] = true, -- Remove Shadows
-    ["Low Rendering"] = true, -- Lower Rendering
-    ["Low Quality Parts"] = true, -- Lower quality parts
-    PingOptimizations = true, -- Ping-based optimizations
-    NetworkOptimizations = true, -- Reduce unnecessary network load
-    RenderDistance = 100, -- Maximum render distance (in studs)
-    SimplifyTerrain = true, -- Simplify or disable terrain for better performance
-    DisableLightingEffects = true, -- Disable dynamic lighting effects for FPS
+    ["No Particles"] = true,  -- Disables ParticleEmitter, Trail, Smoke, Fire, Sparkles
+    ["No Camera Effects"] = true,  -- Disables PostEffect's
+    ["No Explosions"] = true,  -- Makes Explosions invisible
+    ["No Clothes"] = true,  -- Removes Clothing
+    ["Low Water Graphics"] = true,  -- Removes Water Quality
+    ["No Shadows"] = true,  -- Remove Shadows
+    ["Low Rendering"] = true,  -- Lower Rendering Quality
+    ["Low Quality Parts"] = true,  -- Lower quality parts
+    PingOptimizations = true,  -- Ping-based optimizations
+    NetworkOptimizations = true,  -- Reduce network load
+    RenderDistance = 100,  -- Maximum render distance (in studs)
+    SimplifyTerrain = true,  -- Simplify or disable terrain
+    DisableLightingEffects = true,  -- Disable dynamic lighting
+    DisablePhysics = true,  -- Disable physics for non-essential objects
+    EnableLOD = true,  -- Enable Level of Detail system
+    CompressTextures = true,  -- Compress textures to reduce VRAM
+    DisableAnimations = true,  -- Disable animations for non-player characters
+    OptimizeGC = true,  -- Optimize garbage collection
+    DynamicFrameRate = true,  -- Cap frame rate dynamically
+    TargetPing = 40,  -- Target ping in ms
+    FastFlags = {  -- Expanded Fast Flags for FPS and latency
+        -- Rendering optimizations
+        FFlagDebugGraphicsPreferVulkan = "True",  -- Use Vulkan for efficient rendering
+        FFlagGraphicsGLTextureReduction = "True",  -- Reduce texture quality
+        DFFlagTextureQualityOverrideEnabled = "True",  -- Enable texture quality override
+        DFIntTextureQualityOverride = "0",  -- Lowest texture quality
+        FFlagRenderingUseMobileTextureStreaming = "True",  -- Mobile texture streaming
+        FFlagRenderingUseMobileTextureStreamingOnPC = "True",  -- PC texture streaming
+        FFlagDisablePostFx = "True",  -- Disable post-processing effects
+        DFIntCSGLevelOfDetailSwitchingDistance = "250",  -- LOD distance for CSG
+        DFIntCSGLevelOfDetailSwitchingDistanceL12 = "500",
+        DFIntCSGLevelOfDetailSwitchingDistanceL23 = "750",
+        DFIntCSGLevelOfDetailSwitchingDistanceL34 = "1000",
+        FIntDebugTextureManagerSkipMips = "-1",  -- Skip texture mips
+        DFIntDebugFRMQualityLevelOverride = "1",  -- Force lowest rendering quality
+        FFlagDebugGraphicsDisableDirect3D11 = "True",  -- Disable Direct3D11 for Vulkan
+        FFlagDebugForceFastLighting = "True",  -- Faster lighting calculations
+        DFIntRenderQualityOverride = "1",  -- Override rendering quality
+        FFlagDisableCameraBob = "True",  -- Disable camera bobbing
+        -- FPS unlocking
+        DFIntTaskSchedulerTargetFps = "29383",  -- Unlock FPS cap
+        FFlagGameBasicSettingsFramerateCap5 = "False",  -- Disable frame rate cap
+        FFlagTaskSchedulerLimitTargetFpsTo2402 = "False",  -- Remove FPS limit
+        -- Physics optimization
+        DFIntS2PhysicsSenderRate = "1",  -- Reduce physics update rate
+        FIntPGSAngularDampingPermilPersecond = "0",  -- Disable angular damping
+        FFlagPhysicsOptimizeForLowEnd = "True",  -- Optimize physics for low-end devices
+        -- Network and latency
+        FFlagNetworkReduceLatency = "True",  -- Reduce network latency
+        DFIntNetworkExtrapolationLimitMs = "30",  -- Lower extrapolation for responsiveness
+        FIntNetworkPredictionLimit = "10",  -- Reduce network prediction
+        FFlagEnablePacketCompression = "True",  -- Compress network packets
+        DFIntNetworkPacketSendRate = "50",  -- Increase packet send rate for low ping
+        FFlagOptimizeNetworkReplication = "True",  -- Optimize replication
+        FFlagDisableClientSidePrediction = "True"  -- Disable client-side prediction
+    }
 }
 
--- Disable unnecessary features for performance
-if _G.Settings["No Particles"] then
-    game:GetService("ReplicatedStorage"):WaitForChild("ParticleEmitters"):ClearAllChildren()
+-- Safe service fetching with retry mechanism
+local function safeGetService(serviceName, retries)
+    retries = retries or 3
+    local service
+    local success, err = pcall(function()
+        service = game:GetService(serviceName)
+    end)
+    while not success and retries > 0 do
+        warn("Retrying to fetch service: " .. serviceName)
+        task.wait(1)
+        success, err = pcall(function()
+            service = game:GetService(serviceName)
+        end)
+        retries = retries - 1
+    end
+    if not service then
+        warn("Failed to fetch service: " .. serviceName .. " - Error: " .. tostring(err))
+    end
+    return service
 end
 
-if _G.Settings["No Camera Effects"] then
-    local camera = game:GetService("Workspace").CurrentCamera
-    camera.PostProcessingEnabled = false
+-- Apply fast flags
+local function applyFastFlags()
+    if _G.Settings.FastFlags and syn then
+        local success, err = pcall(function()
+            for flag, value in pairs(_G.Settings.FastFlags) do
+                syn.set_fflag(flag, tostring(value))
+            end
+        end)
+        if not success then
+            warn("Error applying fast flags: " .. tostring(err))
+        else
+            print("Fast flags applied successfully")
+        end
+    elseif not syn then
+        warn("Synapse X not detected; fast flags cannot be applied. Consider using Bloxstrap.")
+    end
 end
 
--- Adjust rendering settings
-if _G.Settings["Low Rendering"] then
-    game:GetService("Settings").RenderingQuality = Enum.QualityLevel.Low
+-- Optimize settings
+local function optimizeSettings()
+    local RunService = safeGetService("RunService")
+    local Lighting = safeGetService("Lighting")
+    local Workspace = safeGetService("Workspace")
+    local Players = safeGetService("Players")
+
+    if _G.Settings["No Particles"] then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+    end
+
+    if _G.Settings["No Camera Effects"] then
+        local camera = Workspace.CurrentCamera
+        if camera then
+            for _, effect in pairs(camera:GetDescendants()) do
+                if effect:IsA("PostEffect") then
+                    effect.Enabled = false
+                end
+            end
+        end
+    end
+
+    if _G.Settings["Low Rendering"] then
+        local success, err = pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
+        if not success then
+            warn("Failed to set rendering quality: " .. tostring(err))
+        end
+    end
+
+    if _G.Settings["Low Quality Parts"] then
+        for _, part in pairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and not part:IsA("MeshPart") then
+                part.Material = Enum.Material.SmoothPlastic
+                part.Reflectance = 0
+            end
+        end
+    end
+
+    if _G.Settings["No Clothes"] then
+        for _, player in pairs(Players:GetPlayers()) do
+            local character = player.Character
+            if character and (_G.Settings.Players["Ignore Me"] and player ~= Players.LocalPlayer or _G.Settings.Players["Ignore Others"]) then
+                for _, obj in pairs(character:GetChildren()) do
+                    if obj:IsA("Clothing") or obj:IsA("Accessory") then
+                        obj:Destroy()
+                    end
+                end
+            end
+        end
+    end
+
+    if _G.Settings["Low Water Graphics"] then
+        local terrain = Workspace:FindFirstChild("Terrain")
+        if terrain then
+            terrain.WaterReflectance = 0
+            terrain.WaterTransparency = 1
+        end
+    end
+
+    if _G.Settings["No Shadows"] then
+        if Lighting then
+            Lighting.GlobalShadows = false
+        end
+    end
+
+    if _G.Settings["No Explosions"] then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("Explosion") then
+                obj.Visible = false
+            end
+        end
+    end
 end
 
-if _G.Settings["Low Quality Parts"] then
-    game:GetService("ReplicatedStorage"):WaitForChild("LowDetailParts"):ClearAllChildren()
-end
-
--- Mesh Optimization (Low Detail or Destroy)
-if _G.Settings.Meshes.LowDetail then
-    for _, mesh in pairs(workspace:GetDescendants()) do
+-- Mesh optimization
+local function optimizeMeshes()
+    local Workspace = safeGetService("Workspace")
+    for _, mesh in pairs(Workspace:GetDescendants()) do
         if mesh:IsA("MeshPart") then
-            mesh.Reflectance = 0
-            mesh.Material = Enum.Material.SmoothPlastic
-            mesh.TextureID = ""
+            if _G.Settings.Meshes.LowDetail then
+                mesh.Reflectance = 0
+                mesh.Material = Enum.Material.SmoothPlastic
+                mesh.TextureId = ""
+            end
+            if _G.Settings.Meshes.Destroy then
+                mesh:Destroy()
+            end
         end
     end
 end
 
-if _G.Settings.Meshes.Destroy then
-    for _, mesh in pairs(workspace:GetDescendants()) do
-        if mesh:IsA("MeshPart") then
-            mesh:Destroy()
+-- Image optimization
+local function optimizeImages()
+    local Workspace = safeGetService("Workspace")
+    for _, img in pairs(Workspace:GetDescendants()) do
+        if img:IsA("Decal") or img:IsA("Texture") then
+            if _G.Settings.Images.Invisible then
+                img.Transparency = 1
+            end
+            if _G.Settings.Images.LowDetail then
+                img.Texture = ""
+            end
+            if _G.Settings.Images.Destroy then
+                img:Destroy()
+            end
         end
     end
 end
 
--- Handle Ping Optimization (Low Ping = Less Restriction)
-if _G.Settings.PingOptimizations then
-    local function checkPing()
-        local player = game.Players.LocalPlayer
-        local ping = player.NetworkSettings.Ping
+-- Enhanced ping optimization targeting 40ms
+local function optimizePing()
+    if _G.Settings.PingOptimizations then
+        local RunService = safeGetService("RunService")
+        local Players = safeGetService("Players")
+        local function checkPing()
+            local player = Players.LocalPlayer
+            if player then
+                local ping = player:GetNetworkPing() * 1000 -- Convert to ms
+                if ping > _G.Settings.TargetPing then
+                    -- Aggressive optimizations for high ping
+                    _G.Settings.Meshes.LowDetail = true
+                    _G.Settings.Images.LowDetail = true
+                    _G.Settings["Low Rendering"] = true
+                    _G.Settings["No Shadows"] = true
+                    _G.Settings["No Camera Effects"] = true
+                    _G.Settings["No Particles"] = true
+                    _G.Settings.FastFlags.DFIntNetworkExtrapolationLimitMs = "20"
+                    _G.Settings.FastFlags.DFIntNetworkPacketSendRate = "60"
+                    applyFastFlags()
+                else
+                    -- Restore quality for low ping
+                    _G.Settings.Meshes.LowDetail = false
+                    _G.Settings.Images.LowDetail = false
+                    _G.Settings["Low Rendering"] = false
+                    _G.Settings["No Shadows"] = false
+                    _G.Settings["No Camera Effects"] = false
+                    _G.Settings["No Particles"] = false
+                    _G.Settings.FastFlags.DFIntNetworkExtrapolationLimitMs = "30"
+                    _G.Settings.FastFlags.DFIntNetworkPacketSendRate = "50"
+                    applyFastFlags()
+                end
+                -- Notify ping status
+                local StarterGui = safeGetService("StarterGui")
+                if StarterGui then
+                    pcall(function()
+                        StarterGui:SetCore("SendNotification", {
+                            Title = "Ping Status",
+                            Text = "Current ping: " .. math.floor(ping) .. "ms (Target: " .. _G.Settings.TargetPing .. "ms)",
+                            Duration = 3
+                        })
+                    end)
+                end
+            end
+        end
+        RunService.Heartbeat:Connect(checkPing)
+    end
+end
 
-        -- If ping is high, lower the quality of certain things
-        if ping > 150 then
-            -- Low-quality mesh and image adjustments
-            _G.Settings.Meshes.LowDetail = true
-            _G.Settings.Images.LowDetail = true
-            _G.Settings["Low Rendering"] = true
-            _G.Settings["No Shadows"] = true
-            _G.Settings["No Camera Effects"] = true
-            _G.Settings["No Particles"] = true
-        elseif ping then
-            -- Optimize for low ping
-            _G.Settings.Meshes.LowDetail = false
-            _G.Settings.Images.LowDetail = false
-            _G.Settings["Low Rendering"] = false
-            _G.Settings["No Shadows"] = false
-            _G.Settings["No Camera Effects"] = false
-            _G.Settings["No Particles"] = false
+-- Optimize network with packet prioritization
+local function optimizeNetwork()
+    if _G.Settings.NetworkOptimizations then
+        local ReplicatedStorage = safeGetService("ReplicatedStorage")
+        for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+            if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not string.match(obj.Name, "Critical") then
+                obj.Name = obj.Name .. "_Disabled" -- Rename non-critical remotes
+            end
         end
     end
+end
 
-    -- Run the ping check periodically
-    game:GetService("RunService").Heartbeat:Connect(function()
-        checkPing()
+-- Adjust render distance
+local function optimizeRenderDistance()
+    if _G.Settings.RenderDistance then
+        local camera = safeGetService("Workspace").CurrentCamera
+        if camera then
+            local success, err = pcall(function()
+                camera.MaximumRenderDistance = _G.Settings.RenderDistance
+            end)
+            if not success then
+                warn("Failed to set render distance: " .. tostring(err))
+            end
+        end
+    end
+end
+
+-- Simplify terrain
+local function simplifyTerrain()
+    if _G.Settings.SimplifyTerrain then
+        local terrain = safeGetService("Workspace"):FindFirstChild("Terrain")
+        if terrain then
+            terrain.WaterWaveSize = 0
+            terrain.WaterWaveSpeed = 0
+            terrain.Material = Enum.Material.SmoothPlastic
+        end
+    end
+end
+
+-- Disable lighting effects
+local function optimizeLighting()
+    if _G.Settings.DisableLightingEffects then
+        local Lighting = safeGetService("Lighting")
+        if Lighting then
+            Lighting.GlobalShadows = false
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            Lighting.Brightness = 2
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            for _, effect in pairs(Lighting:GetDescendants()) do
+                if effect:IsA("Sky") or effect:IsA("Atmosphere") then
+                    effect:Destroy()
+                end
+            end
+        end
+    end
+end
+
+-- Disable physics
+local function optimizePhysics()
+    if _G.Settings.DisablePhysics then
+        local Workspace = safeGetService("Workspace")
+        local Players = safeGetService("Players")
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsA("MeshPart") and not obj:IsDescendantOf(Players.LocalPlayer.Character) then
+                obj.Anchored = true
+                obj.CanCollide = false
+            end
+        end
+    end
+end
+
+-- Level of Detail (LOD) system
+local function optimizeLOD()
+    if _G.Settings.EnableLOD then
+        local RunService =  safeGetService("RunService")
+        local camera = safeGetService("Workspace").CurrentCamera
+        RunService.Heartbeat:Connect(function()
+            for _, obj in pairs(safeGetService("Workspace"):GetDescendants()) do
+                if obj:IsA("MeshPart") then
+                    local distance = (obj.Position - camera.CFrame.Position).Magnitude
+                    if distance > _G.Settings.RenderDistance / 2 then
+                        obj.Material = Enum.Material.SmoothPlastic
+                        obj.Reflectance = 0
+                        obj.TextureId = ""
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- Compress textures
+local function compressTextures()
+    if _G.Settings.CompressTextures then
+        local Workspace = safeGetService("Workspace")
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("Texture") or obj:IsA("Decal") then
+                obj.Texture = ""
+            end
+        end
+    end
+end
+
+-- Disable animations
+local function disableAnimations()
+    if _G.Settings.DisableAnimations then
+        local Players = safeGetService("Players")
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= Players.LocalPlayer then
+                local character = player.Character
+                if character then
+                    for _, anim in pairs(character:GetDescendants()) do
+                        if anim:IsA("Animation") or anim:IsA("AnimationController") then
+                            anim:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Optimize garbage collection
+local function optimizeGC()
+    if _G.Settings.OptimizeGC then
+        local RunService = safeGetService("RunService")
+        RunService.Heartbeat:Connect(function()
+            collectgarbage("collect")
+            collectgarbage("setpause", 200)
+            collectgarbage("setstepmul", 500)
+        end)
+    end
+end
+
+-- Dynamic frame rate cap
+local function setDynamicFrameRate()
+    if _G.Settings.DynamicFrameRate then
+        local RunService = safeGetService("RunService")
+        local targetFPS = 30 -- Adjust based on device
+        local success, err = pcall(function()
+            settings().Rendering.TargetFrameRate = targetFPS
+        end)
+        if not success then
+            warn("Failed to set frame rate: " .. tostring(err))
+        end
+        RunService:Set3dRenderingEnabled(true)
+    end
+end
+
+-- Performance monitoring
+local function monitorPerformance()
+    local RunService = safeGetService("RunService")
+    local Players = safeGetService("Players")
+    local StarterGui = safeGetService("StarterGui")
+    RunService.Heartbeat:Connect(function()
+        local player = Players.LocalPlayer
+        if player then
+            local ping = math.floor(player:GetNetworkPing() * 1000)
+            local fps = math.floor(1 / RunService.Heartbeat:Wait())
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Performance",
+                    Text = "FPS: " .. fps .. " | Ping: " .. ping .. "ms",
+                    Duration = 5
+                })
+            end)
+        end
     end)
 end
 
--- Network Optimizations (Reduce Unnecessary Requests)
-if _G.Settings.NetworkOptimizations then
-    -- Disable RemoteEvents or reduce network activity for performance
-    game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):ClearAllChildren()
-end
-
--- Adjust Render Distance
-if _G.Settings.RenderDistance then
-    local camera = game:GetService("Workspace").CurrentCamera
-    camera:SetFarClippingDistance(_G.Settings.RenderDistance)
-end
-
--- Simplify Terrain
-if _G.Settings.SimplifyTerrain then
-    -- Disable terrain rendering or reduce its complexity
-    local terrain = game:GetService("Workspace"):FindFirstChild("Terrain")
-    if terrain then
-        terrain:ClearAllChildren()  -- You can also choose to modify it for simpler visuals
+-- Fast Flag UI toggle
+local function createFastFlagUI()
+    local StarterGui = safeGetService("StarterGui")
+    local Players = safeGetService("Players")
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local Frame = Instance.new("Frame", ScreenGui)
+    Frame.Size = UDim2.new(0, 250, 0, 400)
+    Frame.Position = UDim2.new(0, 10, 0, 10)
+    Frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    local yOffset = 10
+    for flag, value in pairs(_G.Settings.FastFlags) do
+        local Toggle = Instance.new("TextButton", Frame)
+        Toggle.Size = UDim2.new(0, 230, 0, 30)
+        Toggle.Position = UDim2.new(0, 10, 0, yOffset)
+        Toggle.Text = flag .. ": " .. tostring(value)
+        Toggle.BackgroundColor3 = (value == "True" or tonumber(value) <= 1) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        Toggle.MouseButton1Click:Connect(function()
+            _G.Settings.FastFlags[flag] = (value == "True" or tonumber(value) <= 1) and "False" or "True"
+            applyFastFlags()
+            Toggle.Text = flag .. ": " .. tostring(_G.Settings.FastFlags[flag])
+            Toggle.BackgroundColor3 = (_G.Settings.FastFlags[flag] == "True" or tonumber(_G.Settings.FastFlags[flag]) <= 1) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        end)
+        yOffset = yOffset + 40
     end
 end
 
--- Disable Lighting Effects for Better FPS
-if _G.Settings.DisableLightingEffects then
-    local lighting = game:GetService("Lighting")
-    lighting.GlobalShadows = false
-    lighting.Ambient = Color3.fromRGB(255, 255, 255)
-    lighting.Brightness = 2
-    lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+-- Load external FPS boost script
+local function loadFPSBoost()
+    local url = "https://raw.githubusercontent.com/GRIPPERTV/FPS-Booster/main/Source.lua"
+    local success, err = pcall(function()
+        loadstring(game:HttpGet(url))()
+    end)
+    if not success then
+        warn("Error loading external FPS Boost script: " .. tostring(err))
+    else
+        print("External FPS Boost script loaded successfully")
+    end
 end
 
--- Optionally, include FPS boost from an external script
-loadstring(game:HttpGet("https://raw.githubusercontent.com/CasperFlyModz/discord.gg-rips/main/FPSBooster.lua"))()
+-- Show notification
+local function showNotification()
+    local StarterGui = safeGetService("StarterGui")
+    if StarterGui then
+        local success, err = pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = "FPS Boost Loaded",
+                Text = "Enhanced FPS Boost and Anti-Lag Script with Fast Flags has been successfully loaded!",
+                Icon = "rbxassetid://123456789",  -- Replace with your icon asset ID
+                Duration = 5
+            })
+        end)
+        if not success then
+            warn("Failed to show notification: " .. tostring(err))
+        end
+    end
+end
+
+-- Execute optimizations
+applyFastFlags()
+optimizeSettings()
+optimizeMeshes()
+optimizeImages()
+optimizePing()
+optimizeNetwork()
+optimizeRenderDistance()
+simplifyTerrain()
+optimizeLighting()
+optimizePhysics()
+optimizeLOD()
+compressTextures()
+disableAnimations()
+optimizeGC()
+setDynamicFrameRate()
+monitorPerformance()
+createFastFlagUI()
+loadFPSBoost()
+showNotification()
